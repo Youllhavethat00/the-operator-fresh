@@ -1,0 +1,48 @@
+{
+  "name": "The Operator",
+  "short_name": "Operator",
+  "description": "Master productivity planner with 80-60-20 time blocking, daily intentions, and motivational guidance to keep you focused and aligned with your goals.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#09090b",
+  "theme_color": "#f59e0b",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["productivity", "lifestyle", "business"],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Today's Plan",
+      "short_name": "Today",
+      "description": "View and manage today's tasks",
+      "url": "/?view=daily",
+      "icons": [{ "src": "/icon.svg", "sizes": "any" }]
+    },
+    {
+      "name": "Weekly Review",
+      "short_name": "Weekly",
+      "description": "Plan your week",
+      "url": "/?view=weekly",
+      "icons": [{ "src": "/icon.svg", "sizes": "any" }]
+    }
+  ]
+}
