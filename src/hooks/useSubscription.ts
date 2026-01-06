@@ -28,6 +28,12 @@ const defaultSubscription: SubscriptionStatus = {
   status: 'inactive'
 };
 
+// Admin emails with free pro access
+const ADMIN_EMAILS = [
+  'tyler@backyardpyre.com',
+  'reviewer@backyardpyre.com'
+];
+
 export const useSubscription = (userEmail?: string | null): UseSubscriptionReturn => {
   const [subscription, setSubscription] = useState<SubscriptionStatus>(defaultSubscription);
   const [isLoading, setIsLoading] = useState(false);
@@ -36,6 +42,20 @@ export const useSubscription = (userEmail?: string | null): UseSubscriptionRetur
   const fetchSubscriptionStatus = useCallback(async () => {
     if (!userEmail) {
       setSubscription(defaultSubscription);
+      return;
+    }
+
+    // Check if admin user - grant instant pro access
+    if (ADMIN_EMAILS.includes(userEmail.toLowerCase())) {
+      setSubscription({
+        hasSubscription: true,
+        plan: 'pro',
+        status: 'active',
+        subscriptionId: 'admin-bypass',
+        customerId: 'admin',
+        currentPeriodEnd: Date.now() + 365 * 24 * 60 * 60 * 1000, // 1 year from now
+        cancelAtPeriodEnd: false
+      });
       return;
     }
 
