@@ -15,30 +15,64 @@ const ResetPassword: React.FC = () => {
   useEffect(() => {
     // Check if we have a valid recovery session
     const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      // Check URL for recovery token (Supabase adds it as hash params)
-      const hashParams = new URLSearchParams(window.location.hash.substring(1));
-      const accessToken = hashParams.get('access_token');
-      const type = hashParams.get('type');
-      
-      if (type === 'recovery' && accessToken) {
-        // Set the session with the recovery token
-        const { error } = await supabase.auth.setSession({
-          access_token: accessToken,
-          refresh_token: hashParams.get('refresh_token') || '',
-        });
+      try {
+        // First check for code in URL params (PKCE flow)
+        const params = new URLSearchParams(window.location.search);
+        const code = params.get('code');
         
-        if (error) {
+        if (code) {
+          // Exchange the code for a session
+          const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+          
+          if (error) {
+            console.error('Code exchange error:', error);
+            setError('Invalid or expired reset link. Please request a new one.');
+            setIsValidSession(false);
+          } else if (data.session) {
+            console.log('Session established via code');
+            setIsValidSession(true);
+          } else {
+            setError('Unable to establish session.');
+            setIsValidSession(false);
+          }
+          return;
+        }
+        
+        // Check URL for recovery token (hash params - legacy flow)
+        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+        const accessToken = hashParams.get('access_token');
+        const type = hashParams.get('type');
+        
+        if (type === 'recovery' && accessToken) {
+          // Set the session with the recovery token
+          const { error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: hashParams.get('refresh_token') || '',
+          });
+          
+          if (error) {
+            console.error('Session error:', error);
+            setError('Invalid or expired reset link. Please request a new one.');
+            setIsValidSession(false);
+          } else {
+            console.log('Session established via hash');
+            setIsValidSession(true);
+          }
+          return;
+        }
+        
+        // Check if we already have a session
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          console.log('Existing session found');
+          setIsValidSession(true);
+        } else {
           setError('Invalid or expired reset link. Please request a new one.');
           setIsValidSession(false);
-        } else {
-          setIsValidSession(true);
         }
-      } else if (session) {
-        setIsValidSession(true);
-      } else {
-        setError('Invalid or expired reset link. Please request a new one.');
+      } catch (err) {
+        console.error('Session check error:', err);
+        setError('An error occurred. Please try again.');
         setIsValidSession(false);
       }
     };
