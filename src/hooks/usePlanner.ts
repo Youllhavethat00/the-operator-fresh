@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Task, TimeBlock, DailyPlan, Goal, OperatingCode } from '@/types/planner';
+import { Task, TimeBlock, DailyPlan, Goal, OperatingCode, WeeklyPlan, MonthlyPlan } from '@/types/planner';
 import { defaultOperatingCode } from '@/data/operatingCode';
 import { useSupabaseSync, SyncStatus } from './useSupabaseSync';
 
@@ -8,6 +8,8 @@ const LOCAL_STORAGE_KEY = 'backyard_pyre_planner';
 interface LocalPlannerState {
   operatingCode: OperatingCode;
   dailyPlans: Record<string, DailyPlan>;
+  weeklyPlans: Record<string, WeeklyPlan>;
+  monthlyPlans: Record<string, MonthlyPlan>;
   goals: Goal[];
   streak: number;
   lastActiveDate: string;
@@ -16,12 +18,51 @@ interface LocalPlannerState {
 const getDefaultState = (): LocalPlannerState => ({
   operatingCode: defaultOperatingCode,
   dailyPlans: {},
+  weeklyPlans: {},
+  monthlyPlans: {},
   goals: [],
   streak: 0,
   lastActiveDate: ''
 });
 
 const getTodayKey = () => new Date().toISOString().split('T')[0];
+
+// Sunday-anchored week start key, formatted YYYY-MM-DD
+const getWeekKey = (date: Date = new Date()): string => {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - d.getDay()); // back up to Sunday
+  return d.toISOString().split('T')[0];
+};
+
+// Monthly key formatted YYYY-MM
+const getMonthKey = (date: Date = new Date()): string => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  return `${y}-${m}`;
+};
+
+const getDefaultWeeklyPlan = (weekStart: string): WeeklyPlan => ({
+  weekStart,
+  objective: '',
+  focusTheme: '',
+  keyOutcomes: ['', '', ''],
+  appointments: '',
+  notes: '',
+  comfortVsStandards: '',
+  sacrificeMomentum: '',
+  updatedAt: new Date().toISOString()
+});
+
+const getDefaultMonthlyPlan = (monthKey: string): MonthlyPlan => ({
+  monthKey,
+  priorities: ['', '', ''],
+  metrics: ['', '', ''],
+  focus: '',
+  reflection: '',
+  removeNext: '',
+  updatedAt: new Date().toISOString()
+});
 
 const getDefaultTimeBlocks = (): TimeBlock[] => [
   { id: '1', startTime: '05:00', endTime: '07:00', label: '80% - Deep Work Block 1', priority: '80', taskIds: [], isActive: false },
@@ -36,8 +77,9 @@ const getDefaultTimeBlocks = (): TimeBlock[] => [
 export const usePlanner = () => {
   // Supabase sync hook
   const supabaseSync = useSupabaseSync();
-  
-  // Local state for offline/unauthenticated mode
+
+  // Local state for offline/unauthenticated mode + weekly/monthly
+  // (weekly/monthly are local-only for now until DB tables exist)
   const [localState, setLocalState] = useState<LocalPlannerState>(getDefaultState);
   const [isLocalLoaded, setIsLocalLoaded] = useState(false);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -48,7 +90,13 @@ export const usePlanner = () => {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        setLocalState(prev => ({ ...prev, ...parsed }));
+        setLocalState(prev => ({
+          ...prev,
+          ...parsed,
+          // Ensure new fields exist for users with older saves
+          weeklyPlans: parsed.weeklyPlans || {},
+          monthlyPlans: parsed.monthlyPlans || {}
+        }));
       } catch (e) {
         console.error('Failed to parse saved state');
       }
@@ -66,11 +114,13 @@ export const usePlanner = () => {
     }, 500);
   }, []);
 
+  // Always save weekly/monthly to localStorage even when authenticated,
+  // since those tables don't exist server-side yet.
   useEffect(() => {
-    if (isLocalLoaded && !supabaseSync.isAuthenticated) {
+    if (isLocalLoaded) {
       saveToLocalStorage(localState);
     }
-  }, [localState, isLocalLoaded, supabaseSync.isAuthenticated, saveToLocalStorage]);
+  }, [localState, isLocalLoaded, saveToLocalStorage]);
 
   // Determine which data source to use
   const isAuthenticated = supabaseSync.isAuthenticated;
@@ -81,6 +131,10 @@ export const usePlanner = () => {
   const dailyPlans = isAuthenticated ? supabaseSync.dailyPlans : localState.dailyPlans;
   const goals = isAuthenticated ? supabaseSync.goals : localState.goals;
   const streak = isAuthenticated ? supabaseSync.streak : localState.streak;
+
+  // Weekly + Monthly always come from local for now
+  const weeklyPlans = localState.weeklyPlans;
+  const monthlyPlans = localState.monthlyPlans;
 
   // Get or create today's plan
   const getTodayPlan = useCallback((): DailyPlan => {
@@ -136,7 +190,7 @@ export const usePlanner = () => {
   const toggleTask = useCallback((taskId: string) => {
     const todayPlan = getTodayPlan();
     updateTodayPlan({
-      tasks: todayPlan.tasks.map(t => 
+      tasks: todayPlan.tasks.map(t =>
         t.id === taskId ? { ...t, completed: !t.completed } : t
       )
     });
@@ -189,12 +243,60 @@ export const usePlanner = () => {
     } else {
       setLocalState(prev => ({
         ...prev,
-        goals: prev.goals.map(g => 
+        goals: prev.goals.map(g =>
           g.id === goalId ? { ...g, ...updates } : g
         )
       }));
     }
   }, [isAuthenticated, supabaseSync]);
+
+  // ---------- WEEKLY PLAN METHODS ----------
+  const getCurrentWeeklyPlan = useCallback((): WeeklyPlan => {
+    const key = getWeekKey();
+    return weeklyPlans[key] || getDefaultWeeklyPlan(key);
+  }, [weeklyPlans]);
+
+  const updateCurrentWeeklyPlan = useCallback((updates: Partial<WeeklyPlan>) => {
+    const key = getWeekKey();
+    setLocalState(prev => {
+      const current = prev.weeklyPlans[key] || getDefaultWeeklyPlan(key);
+      return {
+        ...prev,
+        weeklyPlans: {
+          ...prev.weeklyPlans,
+          [key]: {
+            ...current,
+            ...updates,
+            updatedAt: new Date().toISOString()
+          }
+        }
+      };
+    });
+  }, []);
+
+  // ---------- MONTHLY PLAN METHODS ----------
+  const getCurrentMonthlyPlan = useCallback((): MonthlyPlan => {
+    const key = getMonthKey();
+    return monthlyPlans[key] || getDefaultMonthlyPlan(key);
+  }, [monthlyPlans]);
+
+  const updateCurrentMonthlyPlan = useCallback((updates: Partial<MonthlyPlan>) => {
+    const key = getMonthKey();
+    setLocalState(prev => {
+      const current = prev.monthlyPlans[key] || getDefaultMonthlyPlan(key);
+      return {
+        ...prev,
+        monthlyPlans: {
+          ...prev.monthlyPlans,
+          [key]: {
+            ...current,
+            ...updates,
+            updatedAt: new Date().toISOString()
+          }
+        }
+      };
+    });
+  }, []);
 
   // Calculate daily progress
   const getDailyProgress = useCallback(() => {
@@ -223,7 +325,7 @@ export const usePlanner = () => {
     const now = new Date();
     const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
     const plan = getTodayPlan();
-    
+
     return plan.timeBlocks.find(block => {
       return currentTime >= block.startTime && currentTime < block.endTime;
     });
@@ -240,31 +342,39 @@ export const usePlanner = () => {
     operatingCode,
     goals,
     streak,
-    
+
     // Auth
     isAuthenticated,
     user: supabaseSync.user,
     signIn: supabaseSync.signIn,
     signUp: supabaseSync.signUp,
     signOut: supabaseSync.signOut,
-    
+
     // Sync status
     syncStatus: supabaseSync.syncStatus,
-    
+
     // Daily plan methods
     getTodayPlan,
     updateTodayPlan,
     addTask,
     toggleTask,
     deleteTask,
-    
+
     // Operating code methods
     updateOperatingCode,
-    
+
     // Goal methods
     addGoal,
     updateGoal,
-    
+
+    // Weekly plan methods
+    getCurrentWeeklyPlan,
+    updateCurrentWeeklyPlan,
+
+    // Monthly plan methods
+    getCurrentMonthlyPlan,
+    updateCurrentMonthlyPlan,
+
     // Progress methods
     getDailyProgress,
     getCurrentTimeBlock,
