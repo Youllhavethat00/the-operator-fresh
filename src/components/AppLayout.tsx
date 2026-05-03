@@ -59,6 +59,12 @@ const AppLayout: React.FC = () => {
     operatingCode,
     goals,
     streak,
+    // Weekly
+    getCurrentWeeklyPlan,
+    updateCurrentWeeklyPlan,
+    // Monthly
+    getCurrentMonthlyPlan,
+    updateCurrentMonthlyPlan,
     // Auth
     isAuthenticated,
     user,
@@ -282,9 +288,19 @@ const AppLayout: React.FC = () => {
           />
         );
       case 'weekly':
-        return <WeeklyView />;
+        return (
+          <WeeklyView
+            weeklyPlan={getCurrentWeeklyPlan()}
+            onUpdate={updateCurrentWeeklyPlan}
+          />
+        );
       case 'monthly':
-        return <MonthlyView />;
+        return (
+          <MonthlyView
+            monthlyPlan={getCurrentMonthlyPlan()}
+            onUpdate={updateCurrentMonthlyPlan}
+          />
+        );
       case 'goals':
         return (
           <GoalsView
