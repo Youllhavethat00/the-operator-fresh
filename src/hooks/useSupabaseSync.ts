@@ -83,6 +83,13 @@ export const useSupabaseSync = (): UseSupabaseSyncReturn => {
   // Auth state listener
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      // Don't load data during password recovery flow — the user is on
+      // /reset-password and the session is temporary until they update it.
+      if (event === 'PASSWORD_RECOVERY') {
+        setIsLoading(false);
+        return;
+      }
+
       setUser(session?.user ?? null);
       
       if (session?.user) {
