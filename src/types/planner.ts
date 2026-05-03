@@ -32,19 +32,25 @@ export interface DailyPlan {
 }
 
 export interface WeeklyPlan {
-  weekStart: string;
-  goals: string[];
-  priorities: string[];
-  reflection?: string;
+  weekStart: string; // YYYY-MM-DD of Sunday
+  objective: string;
+  focusTheme: string;
+  keyOutcomes: string[]; // length 3
+  appointments: string;
+  notes: string;
+  comfortVsStandards: string;
+  sacrificeMomentum: string;
+  updatedAt: string;
 }
 
 export interface MonthlyPlan {
-  month: string;
-  year: number;
-  theme: string;
-  goals: string[];
-  milestones: string[];
-  reflection?: string;
+  monthKey: string; // YYYY-MM
+  priorities: string[]; // length 3
+  metrics: string[]; // length 3
+  focus: string;
+  reflection: string;
+  removeNext: string;
+  updatedAt: string;
 }
 
 export interface Goal {
@@ -82,13 +88,13 @@ export interface PlannerState {
   lastActiveDate: string;
 }
 
-export type ViewType = 
-  | 'dashboard' 
-  | 'operating-code' 
-  | 'daily' 
-  | 'weekly' 
-  | 'monthly' 
-  | 'goals' 
+export type ViewType =
+  | 'dashboard'
+  | 'operating-code'
+  | 'daily'
+  | 'weekly'
+  | 'monthly'
+  | 'goals'
   | 'tools'
   | 'reference'
   | 'profile';
@@ -101,4 +107,3 @@ export interface UserProfile {
   timezone?: string;
   createdAt: string;
 }
-
