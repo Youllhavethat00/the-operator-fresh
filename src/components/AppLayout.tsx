@@ -24,7 +24,6 @@ import { ManageSubscriptionModal } from './planner/ManageSubscriptionModal';
 const WELCOME_COMPLETED_KEY = 'the_operator_welcome_completed';
 const INSTALL_DISMISSED_KEY = 'the_operator_install_dismissed';
 
-
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
@@ -59,13 +58,14 @@ const AppLayout: React.FC = () => {
     operatingCode,
     goals,
     streak,
-    // Weekly
     getCurrentWeeklyPlan,
     updateCurrentWeeklyPlan,
-    // Monthly
     getCurrentMonthlyPlan,
     updateCurrentMonthlyPlan,
-    // Auth
+    tools,
+    updateTools,
+    reference,
+    updateReference,
     isAuthenticated,
     user,
     signIn,
@@ -74,7 +74,6 @@ const AppLayout: React.FC = () => {
     syncStatus
   } = usePlanner();
 
-  // Subscription hook
   const {
     subscription,
     refreshSubscription,
@@ -97,56 +96,37 @@ const AppLayout: React.FC = () => {
   const progress = getDailyProgress();
   const currentBlock = getCurrentTimeBlock();
 
-  // Check if first time user
   useEffect(() => {
     const welcomeCompleted = localStorage.getItem(WELCOME_COMPLETED_KEY);
-    if (!welcomeCompleted) {
-      setShowWelcome(true);
-    }
+    if (!welcomeCompleted) setShowWelcome(true);
   }, []);
 
-  // Handle PWA install prompt (for Android/Chrome)
   useEffect(() => {
     const handler = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
-      
-      // Check if user has dismissed before
       const dismissed = localStorage.getItem(INSTALL_DISMISSED_KEY);
-      if (!dismissed) {
-        setTimeout(() => setShowInstallPrompt(true), 10000);
-      }
+      if (!dismissed) setTimeout(() => setShowInstallPrompt(true), 10000);
     };
-
     window.addEventListener('beforeinstallprompt', handler);
     return () => window.removeEventListener('beforeinstallprompt', handler);
   }, []);
 
-  // Show iOS install prompt
   useEffect(() => {
     if (isIOS && !isPWA && !showWelcome) {
       const dismissed = localStorage.getItem(INSTALL_DISMISSED_KEY);
-      if (!dismissed) {
-        setTimeout(() => setShowNotificationPrompt(true), 8000);
-      }
+      if (!dismissed) setTimeout(() => setShowNotificationPrompt(true), 8000);
     }
   }, [isIOS, isPWA, showWelcome]);
 
-  // Check notification permission on mount
   useEffect(() => {
     if (isSupported && permission === 'default' && !showWelcome && !isIOS) {
-      // Show prompt after 5 seconds
-      const timer = setTimeout(() => {
-        setShowNotificationPrompt(true);
-      }, 5000);
+      const timer = setTimeout(() => setShowNotificationPrompt(true), 5000);
       return () => clearTimeout(timer);
     }
-    if (permission === 'granted') {
-      setNotificationsEnabled(true);
-    }
+    if (permission === 'granted') setNotificationsEnabled(true);
   }, [isSupported, permission, showWelcome, isIOS]);
 
-  // Start block monitoring when notifications are enabled
   useEffect(() => {
     if (notificationsEnabled && todayPlan.timeBlocks.length > 0) {
       const cleanup = startBlockMonitoring(todayPlan.timeBlocks, (block) => {
@@ -156,7 +136,6 @@ const AppLayout: React.FC = () => {
     }
   }, [notificationsEnabled, todayPlan.timeBlocks, startBlockMonitoring]);
 
-  // Schedule daily notifications
   useEffect(() => {
     if (notificationsEnabled) {
       const cleanup = scheduleDailyNotifications('06:00', '20:00');
@@ -164,17 +143,13 @@ const AppLayout: React.FC = () => {
     }
   }, [notificationsEnabled, scheduleDailyNotifications]);
 
-  // Morning briefing
   useEffect(() => {
     if (notificationsEnabled && isLoaded) {
       const now = new Date();
       const hour = now.getHours();
-      
-      // Send morning briefing between 5-8 AM
       if (hour >= 5 && hour <= 8) {
         const lastBriefing = localStorage.getItem('last_morning_briefing');
         const today = now.toDateString();
-        
         if (lastBriefing !== today) {
           sendMorningBriefing(
             todayPlan.tasks.map(t => ({ title: t.title, priority: t.priority })),
@@ -195,9 +170,7 @@ const AppLayout: React.FC = () => {
     const granted = await requestPermission();
     setNotificationsEnabled(granted);
     setShowNotificationPrompt(false);
-    if (granted) {
-      playBlockBell();
-    }
+    if (granted) playBlockBell();
   };
 
   const handleToggleNotifications = async () => {
@@ -217,9 +190,7 @@ const AppLayout: React.FC = () => {
     if (deferredPrompt) {
       deferredPrompt.prompt();
       const { outcome } = await deferredPrompt.userChoice;
-      if (outcome === 'accepted') {
-        setDeferredPrompt(null);
-      }
+      if (outcome === 'accepted') setDeferredPrompt(null);
     }
     setShowInstallPrompt(false);
   };
@@ -232,25 +203,17 @@ const AppLayout: React.FC = () => {
 
   const handleSignOut = async () => {
     await signOut();
-    // Reset to dashboard view after sign out
     setCurrentView('dashboard');
   };
 
-  const handleSubscribed = () => {
-    refreshSubscription();
-  };
+  const handleSubscribed = () => refreshSubscription();
 
   const handleUpgradeClick = () => {
-    if (!isAuthenticated) {
-      setShowAuthModal(true);
-    } else {
-      setShowPricingModal(true);
-    }
+    if (!isAuthenticated) setShowAuthModal(true);
+    else setShowPricingModal(true);
   };
 
-  const handleProfileClick = () => {
-    setCurrentView('profile');
-  };
+  const handleProfileClick = () => setCurrentView('profile');
 
   const renderView = () => {
     switch (currentView) {
@@ -310,16 +273,12 @@ const AppLayout: React.FC = () => {
           />
         );
       case 'tools':
-        return <ToolsView />;
+        return <ToolsView tools={tools} onUpdate={updateTools} />;
       case 'reference':
-        return <ReferenceView />;
+        return <ReferenceView reference={reference} onUpdate={updateReference} />;
       case 'profile':
         return isAuthenticated ? (
-          <ProfileView
-            user={user}
-            onSignOut={handleSignOut}
-            streak={streak}
-          />
+          <ProfileView user={user} onSignOut={handleSignOut} streak={streak} />
         ) : (
           <div className="text-center py-20">
             <p className="text-zinc-400 mb-4">Please sign in to view your profile</p>
@@ -335,6 +294,7 @@ const AppLayout: React.FC = () => {
         return null;
     }
   };
+
   if (!isLoaded) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center safe-area-inset">
@@ -357,38 +317,11 @@ const AppLayout: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-black text-white safe-area-inset">
-      {/* Welcome Modal */}
-      <WelcomeModal
-        isOpen={showWelcome}
-        onComplete={handleWelcomeComplete}
-      />
+      <WelcomeModal isOpen={showWelcome} onComplete={handleWelcomeComplete} />
+      <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} onSignIn={signIn} onSignUp={signUp} />
+      <PricingModal isOpen={showPricingModal} onClose={() => setShowPricingModal(false)} userEmail={user?.email} onSubscribed={handleSubscribed} />
+      <ManageSubscriptionModal isOpen={showManageSubscription} onClose={() => setShowManageSubscription(false)} subscription={subscription} onCancel={cancelSubscription} onRefresh={refreshSubscription} />
 
-      {/* Auth Modal */}
-      <AuthModal
-        isOpen={showAuthModal}
-        onClose={() => setShowAuthModal(false)}
-        onSignIn={signIn}
-        onSignUp={signUp}
-      />
-
-      {/* Pricing Modal */}
-      <PricingModal
-        isOpen={showPricingModal}
-        onClose={() => setShowPricingModal(false)}
-        userEmail={user?.email}
-        onSubscribed={handleSubscribed}
-      />
-
-      {/* Manage Subscription Modal */}
-      <ManageSubscriptionModal
-        isOpen={showManageSubscription}
-        onClose={() => setShowManageSubscription(false)}
-        subscription={subscription}
-        onCancel={cancelSubscription}
-        onRefresh={refreshSubscription}
-      />
-
-      {/* Desktop Sidebar */}
       <div className="hidden lg:block">
         <Sidebar
           currentView={currentView}
@@ -400,7 +333,6 @@ const AppLayout: React.FC = () => {
         />
       </div>
 
-      {/* Mobile Navigation */}
       <MobileNav
         isOpen={mobileNavOpen}
         onClose={() => setMobileNavOpen(false)}
@@ -409,7 +341,6 @@ const AppLayout: React.FC = () => {
         isAuthenticated={isAuthenticated}
       />
 
-      {/* Main Content */}
       <div className={`transition-all duration-300 ${sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-64'}`}>
         <Header
           onMenuClick={() => setMobileNavOpen(true)}
@@ -431,7 +362,6 @@ const AppLayout: React.FC = () => {
           {renderView()}
         </main>
 
-        {/* Sync Banner for unauthenticated users */}
         {!isAuthenticated && !isPWA && (
           <div className="fixed bottom-0 left-0 right-0 lg:left-64 bg-gradient-to-r from-amber-500/10 to-red-500/10 border-t border-amber-500/30 p-4 safe-area-bottom">
             <div className="max-w-4xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
@@ -450,7 +380,6 @@ const AppLayout: React.FC = () => {
         )}
       </div>
 
-      {/* Notification Permission Prompt (also handles iOS install instructions) */}
       <NotificationPrompt
         isVisible={showNotificationPrompt}
         onEnable={handleEnableNotifications}
@@ -459,7 +388,6 @@ const AppLayout: React.FC = () => {
         isPWA={isPWA}
       />
 
-      {/* PWA Install Prompt (Android/Chrome) */}
       <InstallPrompt
         isVisible={showInstallPrompt && !isIOS}
         onInstall={handleInstallApp}
