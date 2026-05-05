@@ -319,6 +319,35 @@ export const usePlanner = () => {
     updateTodayPlan({ timeBlocks });
   }, [updateTodayPlan]);
 
+  // ---------- STREAK LOGIC ----------
+  // Streak ticks up once per day when today's task completion hits >= 60%.
+  // Continues if you hit it yesterday too. Resets to 1 if you missed a day.
+  // Only ever increments — never decrements within the same day.
+  useEffect(() => {
+    if (!isLocalLoaded) return;
+
+    const todayKey = getTodayKey();
+    const todayPlan = dailyPlans[todayKey];
+    if (!todayPlan || todayPlan.tasks.length === 0) return;
+
+    const completed = todayPlan.tasks.filter((t: Task) => t.completed).length;
+    const completionPct = (completed / todayPlan.tasks.length) * 100;
+
+    if (localState.lastActiveDate === todayKey) return;
+    if (completionPct < 60) return;
+
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayKey = yesterday.toISOString().split('T')[0];
+    const continuingStreak = localState.lastActiveDate === yesterdayKey;
+
+    setLocalState(prev => ({
+      ...prev,
+      streak: continuingStreak ? prev.streak + 1 : 1,
+      lastActiveDate: todayKey
+    }));
+  }, [dailyPlans, isLocalLoaded, localState.lastActiveDate]);
+
   return {
     isLoaded,
     operatingCode,
