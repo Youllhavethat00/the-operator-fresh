@@ -168,8 +168,8 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           )}
 
-          {/* Streak Counter */}
-          <div className="hidden sm:flex items-center gap-1 md:gap-2 bg-zinc-900 px-2 md:px-3 py-2 rounded-lg border border-zinc-800">
+          {/* Streak Counter — visible on all screen sizes so users see their progress */}
+          <div className="flex items-center gap-1 md:gap-2 bg-zinc-900 px-2 md:px-3 py-2 rounded-lg border border-zinc-800">
             <Flame size={18} className="text-amber-500" />
             <span className="text-white font-bold">{streak}</span>
             <span className="text-zinc-500 text-sm hidden lg:inline">day streak</span>
