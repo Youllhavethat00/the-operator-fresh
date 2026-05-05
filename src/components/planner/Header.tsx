@@ -1,9 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { Bell, BellOff, Menu, Flame, Cloud, CloudOff, RefreshCw, User, LogOut, Download, Settings } from 'lucide-react';
+import { Bell, BellOff, Menu, Flame, Cloud, CloudOff, RefreshCw, User, LogOut, Download, MessageSquare } from 'lucide-react';
 import { getDailyQuote } from '@/data/quotes';
 import { getPhaseForMonth, getPhaseColor } from '@/data/operatingCode';
 import { SyncStatus } from '@/hooks/useSupabaseSync';
-import { SubscriptionBadge } from './SubscriptionBadge';
+
+// === BETA CONFIG ===
+// During beta, payments are disabled and the user menu surfaces a feedback link instead.
+// To re-enable paid flows: set BETA_MODE = false and the upgrade UI returns.
+const BETA_MODE = true;
+const FEEDBACK_EMAIL = 'tyler@backyardpyre.com';
 
 interface HeaderProps {
   onMenuClick: () => void;
@@ -52,7 +57,6 @@ export const Header: React.FC<HeaderProps> = ({
   }, []);
 
   useEffect(() => {
-    // Check if running as PWA
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches ||
       (window.navigator as any).standalone === true;
     setIsPWA(isStandalone);
@@ -87,7 +91,7 @@ export const Header: React.FC<HeaderProps> = ({
     if (!date) return 'Never';
     const now = new Date();
     const diff = now.getTime() - date.getTime();
-    
+
     if (diff < 60000) return 'Just now';
     if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
     if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
@@ -109,26 +113,35 @@ export const Header: React.FC<HeaderProps> = ({
     return <Cloud size={16} />;
   };
 
+  // Build a feedback email link with prefilled subject + context
+  const buildFeedbackMailto = () => {
+    const subject = encodeURIComponent('The Operator — Beta Feedback');
+    const body = encodeURIComponent(
+      `\n\n---\nApp version: Beta\nUser: ${userEmail || 'anonymous'}\nDate: ${new Date().toLocaleString()}\n`
+    );
+    return `mailto:${FEEDBACK_EMAIL}?subject=${subject}&body=${body}`;
+  };
+
   return (
     <header className="bg-black border-b border-zinc-800 px-4 md:px-6 py-4 safe-area-top">
       <div className="flex items-center justify-between">
         {/* Left: Menu + Date/Time */}
         <div className="flex items-center gap-3 md:gap-4">
-          <button 
+          <button
             onClick={onMenuClick}
             className="lg:hidden p-2 hover:bg-zinc-800 rounded-lg transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
             aria-label="Open menu"
           >
             <Menu size={20} className="text-zinc-400" />
           </button>
-          
+
           <div>
             <div className="flex items-center gap-2 md:gap-3">
               <h1 className="text-base md:text-xl font-bold text-white">
                 <span className="hidden sm:inline">{formatDate(currentTime)}</span>
                 <span className="sm:hidden">{formatDateShort(currentTime)}</span>
               </h1>
-              <span 
+              <span
                 className="px-2 py-0.5 text-xs font-bold rounded uppercase hidden sm:inline"
                 style={{ backgroundColor: `${phaseColor}20`, color: phaseColor }}
               >
@@ -157,7 +170,7 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* Sync Status Indicator */}
           {isAuthenticated && syncStatus && (
-            <div 
+            <div
               className={`hidden sm:flex items-center gap-2 px-2 md:px-3 py-2 rounded-lg border border-zinc-800 ${getSyncStatusColor()}`}
               title={syncStatus.error || (syncStatus.isSyncing ? 'Syncing...' : `Last synced: ${formatLastSynced(syncStatus.lastSynced)}`)}
             >
@@ -168,19 +181,31 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           )}
 
-          {/* Streak Counter — visible on all screen sizes so users see their progress */}
+          {/* Streak Counter */}
           <div className="flex items-center gap-1 md:gap-2 bg-zinc-900 px-2 md:px-3 py-2 rounded-lg border border-zinc-800">
             <Flame size={18} className="text-amber-500" />
             <span className="text-white font-bold">{streak}</span>
             <span className="text-zinc-500 text-sm hidden lg:inline">day streak</span>
           </div>
 
+          {/* Beta Feedback Button (always visible during beta) */}
+          {BETA_MODE && (
+            <a
+              href={buildFeedbackMailto()}
+              className="hidden md:flex items-center gap-2 px-3 py-2 bg-amber-500/10 border border-amber-500/30 text-amber-400 hover:bg-amber-500/20 rounded-lg transition-colors min-h-[44px]"
+              title="Send beta feedback"
+            >
+              <MessageSquare size={18} />
+              <span className="hidden lg:inline text-sm font-medium">Feedback</span>
+            </a>
+          )}
+
           {/* Notification Toggle */}
           <button
             onClick={onToggleNotifications}
             className={`p-2 rounded-lg transition-all min-h-[44px] min-w-[44px] flex items-center justify-center ${
-              notificationsEnabled 
-                ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' 
+              notificationsEnabled
+                ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
                 : 'bg-zinc-800 text-zinc-500 hover:text-zinc-300'
             }`}
             title={notificationsEnabled ? 'Notifications On' : 'Notifications Off'}
@@ -202,7 +227,7 @@ export const Header: React.FC<HeaderProps> = ({
 
               {showUserMenu && (
                 <>
-                  <div 
+                  <div
                     className="fixed inset-0 z-40"
                     onClick={() => setShowUserMenu(false)}
                   />
@@ -210,17 +235,15 @@ export const Header: React.FC<HeaderProps> = ({
                     <div className="p-4 border-b border-zinc-800">
                       <div className="flex items-center justify-between mb-1">
                         <p className="text-xs text-zinc-500">Signed in as</p>
-                        <SubscriptionBadge 
-                          plan={subscriptionPlan} 
-                          onClick={() => {
-                            setShowUserMenu(false);
-                            onUpgradeClick?.();
-                          }}
-                        />
+                        {BETA_MODE && (
+                          <span className="px-2 py-0.5 text-xs font-bold rounded bg-amber-500/20 text-amber-400 uppercase">
+                            Beta
+                          </span>
+                        )}
                       </div>
                       <p className="text-white font-medium truncate">{userEmail}</p>
                     </div>
-                    
+
                     {syncStatus && (
                       <div className="p-4 border-b border-zinc-800">
                         <div className="flex items-center justify-between">
@@ -251,31 +274,46 @@ export const Header: React.FC<HeaderProps> = ({
                         <User size={18} />
                         Account Settings
                       </button>
-                      
-                      {subscriptionPlan !== 'free' && (
-                        <button
-                          onClick={() => {
-                            setShowUserMenu(false);
-                            onManageSubscriptionClick?.();
-                          }}
-                          className="w-full flex items-center gap-3 px-3 py-3 text-zinc-300 hover:bg-zinc-800 rounded-lg transition-colors"
-                        >
-                          <Settings size={18} />
-                          Manage Subscription
-                        </button>
-                      )}
-                      {subscriptionPlan === 'free' && (
-                        <button
-                          onClick={() => {
-                            setShowUserMenu(false);
-                            onUpgradeClick?.();
-                          }}
+
+                      {/* Beta-mode: Feedback button replaces Upgrade/Manage Subscription */}
+                      {BETA_MODE ? (
+                        <a
+                          href={buildFeedbackMailto()}
+                          onClick={() => setShowUserMenu(false)}
                           className="w-full flex items-center gap-3 px-3 py-3 text-amber-400 hover:bg-amber-500/10 rounded-lg transition-colors"
                         >
-                          <Settings size={18} />
-                          Upgrade to Pro
-                        </button>
+                          <MessageSquare size={18} />
+                          Send Feedback
+                        </a>
+                      ) : (
+                        <>
+                          {subscriptionPlan !== 'free' && (
+                            <button
+                              onClick={() => {
+                                setShowUserMenu(false);
+                                onManageSubscriptionClick?.();
+                              }}
+                              className="w-full flex items-center gap-3 px-3 py-3 text-zinc-300 hover:bg-zinc-800 rounded-lg transition-colors"
+                            >
+                              <User size={18} />
+                              Manage Subscription
+                            </button>
+                          )}
+                          {subscriptionPlan === 'free' && (
+                            <button
+                              onClick={() => {
+                                setShowUserMenu(false);
+                                onUpgradeClick?.();
+                              }}
+                              className="w-full flex items-center gap-3 px-3 py-3 text-amber-400 hover:bg-amber-500/10 rounded-lg transition-colors"
+                            >
+                              <User size={18} />
+                              Upgrade to Pro
+                            </button>
+                          )}
+                        </>
                       )}
+
                       <button
                         onClick={() => {
                           setShowUserMenu(false);
