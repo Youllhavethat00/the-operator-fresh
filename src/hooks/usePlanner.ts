@@ -323,8 +323,9 @@ export const usePlanner = () => {
   // Streak ticks up once per day when today's task completion hits >= 60%.
   // Continues if you hit it yesterday too. Resets to 1 if you missed a day.
   // Only ever increments — never decrements within the same day.
+  // Routes to Supabase when authenticated, localStorage otherwise.
   useEffect(() => {
-    if (!isLocalLoaded) return;
+    if (!isLoaded) return;
 
     const todayKey = getTodayKey();
     const todayPlan = dailyPlans[todayKey];
@@ -333,20 +334,30 @@ export const usePlanner = () => {
     const completed = todayPlan.tasks.filter((t: Task) => t.completed).length;
     const completionPct = (completed / todayPlan.tasks.length) * 100;
 
-    if (localState.lastActiveDate === todayKey) return;
+    const currentLastActive = isAuthenticated
+      ? supabaseSync.lastActiveDate
+      : localState.lastActiveDate;
+
+    if (currentLastActive === todayKey) return;
     if (completionPct < 60) return;
 
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
     const yesterdayKey = yesterday.toISOString().split('T')[0];
-    const continuingStreak = localState.lastActiveDate === yesterdayKey;
+    const continuingStreak = currentLastActive === yesterdayKey;
+    const currentStreak = isAuthenticated ? supabaseSync.streak : localState.streak;
+    const newStreak = continuingStreak ? currentStreak + 1 : 1;
 
-    setLocalState(prev => ({
-      ...prev,
-      streak: continuingStreak ? prev.streak + 1 : 1,
-      lastActiveDate: todayKey
-    }));
-  }, [dailyPlans, isLocalLoaded, localState.lastActiveDate]);
+    if (isAuthenticated) {
+      supabaseSync.updateStreak(newStreak, todayKey);
+    } else {
+      setLocalState(prev => ({
+        ...prev,
+        streak: newStreak,
+        lastActiveDate: todayKey
+      }));
+    }
+  }, [dailyPlans, isLoaded, isAuthenticated, supabaseSync.lastActiveDate, supabaseSync.streak, localState.lastActiveDate, localState.streak]);
 
   return {
     isLoaded,
