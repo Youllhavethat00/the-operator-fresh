@@ -18,23 +18,25 @@ interface UseSupabaseSyncReturn {
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signUp: (email: string, password: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
-  
+
   // Sync status
   syncStatus: SyncStatus;
-  
+
   // Data
   operatingCode: OperatingCode;
   dailyPlans: Record<string, DailyPlan>;
   goals: Goal[];
   streak: number;
-  
+  lastActiveDate: string;
+
   // Actions
   updateOperatingCode: (updates: Partial<OperatingCode>) => Promise<void>;
   saveDailyPlan: (date: string, plan: DailyPlan) => Promise<void>;
   saveGoal: (goal: Omit<Goal, 'id'>) => Promise<Goal>;
   updateGoal: (goalId: string, updates: Partial<Goal>) => Promise<void>;
   deleteGoal: (goalId: string) => Promise<void>;
-  
+  updateStreak: (newStreak: number, lastActiveDate: string) => Promise<void>;
+
   // Loading
   isLoading: boolean;
 }
@@ -58,22 +60,23 @@ export const useSupabaseSync = (): UseSupabaseSyncReturn => {
     lastSynced: null,
     error: null
   });
-  
+
   const [operatingCode, setOperatingCode] = useState<OperatingCode>(defaultOperatingCode);
   const [dailyPlans, setDailyPlans] = useState<Record<string, DailyPlan>>({});
   const [goals, setGoals] = useState<Goal[]>([]);
   const [streak, setStreak] = useState(0);
-  
+  const [lastActiveDate, setLastActiveDate] = useState<string>('');
+
   const channelsRef = useRef<RealtimeChannel[]>([]);
 
   // Monitor online status
   useEffect(() => {
     const handleOnline = () => setSyncStatus(prev => ({ ...prev, isOnline: true }));
     const handleOffline = () => setSyncStatus(prev => ({ ...prev, isOnline: false }));
-    
+
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
-    
+
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
@@ -91,7 +94,7 @@ export const useSupabaseSync = (): UseSupabaseSyncReturn => {
       }
 
       setUser(session?.user ?? null);
-      
+
       if (session?.user) {
         await loadAllData(session.user.id);
         setupRealtimeSubscriptions(session.user.id);
@@ -101,9 +104,10 @@ export const useSupabaseSync = (): UseSupabaseSyncReturn => {
         setDailyPlans({});
         setGoals([]);
         setStreak(0);
+        setLastActiveDate('');
         cleanupSubscriptions();
       }
-      
+
       setIsLoading(false);
     });
 
@@ -221,7 +225,7 @@ export const useSupabaseSync = (): UseSupabaseSyncReturn => {
 
   const loadAllData = async (userId: string) => {
     setSyncStatus(prev => ({ ...prev, isSyncing: true, error: null }));
-    
+
     try {
       await Promise.all([
         loadOperatingCode(userId),
@@ -229,18 +233,18 @@ export const useSupabaseSync = (): UseSupabaseSyncReturn => {
         loadGoals(userId),
         loadUserProfile(userId)
       ]);
-      
-      setSyncStatus(prev => ({ 
-        ...prev, 
-        isSyncing: false, 
+
+      setSyncStatus(prev => ({
+        ...prev,
+        isSyncing: false,
         lastSynced: new Date(),
-        error: null 
+        error: null
       }));
     } catch (error: any) {
-      setSyncStatus(prev => ({ 
-        ...prev, 
-        isSyncing: false, 
-        error: error.message 
+      setSyncStatus(prev => ({
+        ...prev,
+        isSyncing: false,
+        error: error.message
       }));
     }
   };
@@ -271,7 +275,7 @@ export const useSupabaseSync = (): UseSupabaseSyncReturn => {
     // Load last 30 days of plans
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    
+
     const { data, error } = await supabase
       .from('daily_plans')
       .select('*')
@@ -342,6 +346,7 @@ export const useSupabaseSync = (): UseSupabaseSyncReturn => {
 
     if (data) {
       setStreak(data.streak || 0);
+      setLastActiveDate(data.last_active_date || '');
     }
   };
 
@@ -353,20 +358,20 @@ export const useSupabaseSync = (): UseSupabaseSyncReturn => {
 
   const signUp = async (email: string, password: string) => {
     const { data, error } = await supabase.auth.signUp({ email, password });
-    
+
     if (!error && data.user) {
       // Create initial profile and operating code
       await supabase.from('user_profiles').insert({
         user_id: data.user.id,
         streak: 0
       });
-      
+
       await supabase.from('operating_code').insert({
         user_id: data.user.id,
         principles: defaultOperatingCode.principles
       });
     }
-    
+
     return { error };
   };
 
@@ -377,9 +382,9 @@ export const useSupabaseSync = (): UseSupabaseSyncReturn => {
   // Data mutation methods
   const updateOperatingCode = useCallback(async (updates: Partial<OperatingCode>) => {
     if (!user) return;
-    
+
     setSyncStatus(prev => ({ ...prev, isSyncing: true }));
-    
+
     const dbUpdates: any = {};
     if (updates.principles !== undefined) dbUpdates.principles = updates.principles;
     if (updates.dailySacrifice !== undefined) dbUpdates.daily_sacrifice = updates.dailySacrifice;
@@ -407,7 +412,7 @@ export const useSupabaseSync = (): UseSupabaseSyncReturn => {
 
   const saveDailyPlan = useCallback(async (date: string, plan: DailyPlan) => {
     if (!user) return;
-    
+
     setSyncStatus(prev => ({ ...prev, isSyncing: true }));
 
     const { error } = await supabase
@@ -438,7 +443,7 @@ export const useSupabaseSync = (): UseSupabaseSyncReturn => {
 
   const saveGoal = useCallback(async (goal: Omit<Goal, 'id'>): Promise<Goal> => {
     if (!user) throw new Error('Not authenticated');
-    
+
     setSyncStatus(prev => ({ ...prev, isSyncing: true }));
 
     const { data, error } = await supabase
@@ -475,13 +480,13 @@ export const useSupabaseSync = (): UseSupabaseSyncReturn => {
 
     setGoals(prev => [newGoal, ...prev]);
     setSyncStatus(prev => ({ ...prev, isSyncing: false, lastSynced: new Date() }));
-    
+
     return newGoal;
   }, [user]);
 
   const updateGoal = useCallback(async (goalId: string, updates: Partial<Goal>) => {
     if (!user) return;
-    
+
     setSyncStatus(prev => ({ ...prev, isSyncing: true }));
 
     const dbUpdates: any = { updated_at: new Date().toISOString() };
@@ -510,7 +515,7 @@ export const useSupabaseSync = (): UseSupabaseSyncReturn => {
 
   const deleteGoal = useCallback(async (goalId: string) => {
     if (!user) return;
-    
+
     setSyncStatus(prev => ({ ...prev, isSyncing: true }));
 
     const { error } = await supabase
@@ -528,6 +533,32 @@ export const useSupabaseSync = (): UseSupabaseSyncReturn => {
     }
   }, [user]);
 
+  const updateStreak = useCallback(async (newStreak: number, newLastActiveDate: string) => {
+    if (!user) return;
+
+    setSyncStatus(prev => ({ ...prev, isSyncing: true }));
+
+    const { error } = await supabase
+      .from('user_profiles')
+      .upsert({
+        user_id: user.id,
+        streak: newStreak,
+        last_active_date: newLastActiveDate,
+        updated_at: new Date().toISOString()
+      }, {
+        onConflict: 'user_id'
+      });
+
+    if (error) {
+      console.error('Error updating streak:', error);
+      setSyncStatus(prev => ({ ...prev, isSyncing: false, error: error.message }));
+    } else {
+      setStreak(newStreak);
+      setLastActiveDate(newLastActiveDate);
+      setSyncStatus(prev => ({ ...prev, isSyncing: false, lastSynced: new Date() }));
+    }
+  }, [user]);
+
   return {
     user,
     isAuthenticated: !!user,
@@ -539,11 +570,13 @@ export const useSupabaseSync = (): UseSupabaseSyncReturn => {
     dailyPlans,
     goals,
     streak,
+    lastActiveDate,
     updateOperatingCode,
     saveDailyPlan,
     saveGoal,
     updateGoal,
     deleteGoal,
+    updateStreak,
     isLoading
   };
 };
