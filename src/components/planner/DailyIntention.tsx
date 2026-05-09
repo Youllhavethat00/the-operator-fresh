@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Flame, Target, Shield, Save, Edit2 } from 'lucide-react';
 
 interface DailyIntentionProps {
@@ -19,6 +19,16 @@ export const DailyIntention: React.FC<DailyIntentionProps> = ({
   const [localSacrifice, setLocalSacrifice] = useState(sacrifice);
   const [localComfort, setLocalComfort] = useState(comfortRefused);
 
+  // Sync local state when props change from outside (e.g. AI coach fills them in)
+  useEffect(() => {
+    setLocalIntention(intention);
+    setLocalSacrifice(sacrifice);
+    setLocalComfort(comfortRefused);
+    if (intention && sacrifice && comfortRefused) {
+      setIsEditing(false);
+    }
+  }, [intention, sacrifice, comfortRefused]);
+
   const handleSave = () => {
     onUpdate({
       intention: localIntention,
@@ -32,7 +42,7 @@ export const DailyIntention: React.FC<DailyIntentionProps> = ({
 
   if (!isEditing && allFilled) {
     return (
-      <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 space-y-4">
+      <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 sm:p-6 space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-bold text-white">Daily Commitment</h3>
           <button
@@ -73,7 +83,7 @@ export const DailyIntention: React.FC<DailyIntentionProps> = ({
   }
 
   return (
-    <div className="bg-zinc-900 border border-amber-500/30 rounded-xl p-6 space-y-5">
+    <div className="bg-zinc-900 border border-amber-500/30 rounded-xl p-4 sm:p-6 space-y-5">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-bold text-amber-400">Set Your Daily Commitment</h3>
         {!allFilled && (
@@ -86,7 +96,6 @@ export const DailyIntention: React.FC<DailyIntentionProps> = ({
       </p>
 
       <div className="space-y-4">
-        {/* Intention */}
         <div>
           <label className="flex items-center gap-2 text-sm font-medium text-zinc-300 mb-2">
             <Target size={16} className="text-amber-400" />
@@ -101,7 +110,6 @@ export const DailyIntention: React.FC<DailyIntentionProps> = ({
           />
         </div>
 
-        {/* Sacrifice */}
         <div>
           <label className="flex items-center gap-2 text-sm font-medium text-zinc-300 mb-2">
             <Flame size={16} className="text-red-400" />
@@ -116,7 +124,6 @@ export const DailyIntention: React.FC<DailyIntentionProps> = ({
           />
         </div>
 
-        {/* Comfort Refused */}
         <div>
           <label className="flex items-center gap-2 text-sm font-medium text-zinc-300 mb-2">
             <Shield size={16} className="text-green-400" />
@@ -126,20 +133,4 @@ export const DailyIntention: React.FC<DailyIntentionProps> = ({
             value={localComfort}
             onChange={(e) => setLocalComfort(e.target.value)}
             placeholder="I will not allow myself to..."
-            className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500 resize-none"
-            rows={2}
-          />
-        </div>
-      </div>
-
-      <button
-        onClick={handleSave}
-        disabled={!localIntention || !localSacrifice || !localComfort}
-        className="w-full flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-600 disabled:bg-zinc-700 disabled:text-zinc-500 text-black font-bold py-3 rounded-lg transition-colors"
-      >
-        <Save size={18} />
-        Lock In Commitment
-      </button>
-    </div>
-  );
-};
+            className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500
