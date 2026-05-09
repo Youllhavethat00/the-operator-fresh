@@ -32,4 +32,391 @@ interface BeforeInstallPromptEvent extends Event {
 const AppLayout: React.FC = () => {
   const [currentView, setCurrentView] = useState<ViewType>('dashboard');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [mobileNavOpen, setMobileNavOpen​​​​​​​​​​​​​​​​
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [showNotificationPrompt, setShowNotificationPrompt] = useState(false);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [showWelcome, setShowWelcome] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showPricingModal, setShowPricingModal] = useState(false);
+  const [showManageSubscription, setShowManageSubscription] = useState(false);
+  const [showInstallPrompt, setShowInstallPrompt] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [forceLoaded, setForceLoaded] = useState(false);
+
+  const {
+    isLoaded,
+    getTodayPlan,
+    updateTodayPlan,
+    addTask,
+    toggleTask,
+    deleteTask,
+    updateOperatingCode,
+    addGoal,
+    updateGoal,
+    getDailyProgress,
+    getCurrentTimeBlock,
+    updateTimeBlocks,
+    operatingCode,
+    goals,
+    streak,
+    getCurrentWeeklyPlan,
+    updateCurrentWeeklyPlan,
+    getCurrentMonthlyPlan,
+    updateCurrentMonthlyPlan,
+    tools,
+    updateTools,
+    reference,
+    updateReference,
+    isAuthenticated,
+    user,
+    signIn,
+    signUp,
+    signOut,
+    syncStatus
+  } = usePlanner();
+
+  const {
+    subscription,
+    refreshSubscription,
+    cancelSubscription
+  } = useSubscription(user?.email);
+
+  const {
+    permission,
+    isSupported,
+    isIOS,
+    isPWA,
+    requestPermission,
+    startBlockMonitoring,
+    sendMorningBriefing,
+    playBlockBell,
+    scheduleDailyNotifications
+  } = useNotifications();
+
+  const todayPlan = getTodayPlan();
+  const progress = getDailyProgress();
+  const currentBlock = getCurrentTimeBlock();
+
+  // Safety timeout — if loading takes more than 8 seconds, force past it.
+  // Prevents Safari from getting permanently stuck after a new deploy.
+  useEffect(() => {
+    if (!isLoaded) {
+      const timeout = setTimeout(() => {
+        console.warn('[AppLayout] Loading timed out — forcing past loading screen');
+        setForceLoaded(true);
+      }, 8000);
+      return () => clearTimeout(timeout);
+    }
+  }, [isLoaded]);
+
+  useEffect(() => {
+    const welcomeCompleted = localStorage.getItem(WELCOME_COMPLETED_KEY);
+    if (!welcomeCompleted) setShowWelcome(true);
+  }, []);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e as BeforeInstallPromptEvent);
+      const dismissed = localStorage.getItem(INSTALL_DISMISSED_KEY);
+      if (!dismissed) setTimeout(() => setShowInstallPrompt(true), 10000);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  useEffect(() => {
+    if (isIOS && !isPWA && !showWelcome) {
+      const dismissed = localStorage.getItem(INSTALL_DISMISSED_KEY);
+      if (!dismissed) setTimeout(() => setShowNotificationPrompt(true), 8000);
+    }
+  }, [isIOS, isPWA, showWelcome]);
+
+  useEffect(() => {
+    if (isSupported && permission === 'default' && !showWelcome && !isIOS) {
+      const timer = setTimeout(() => setShowNotificationPrompt(true), 5000);
+      return () => clearTimeout(timer);
+    }
+    if (permission === 'granted') setNotificationsEnabled(true);
+  }, [isSupported, permission, showWelcome, isIOS]);
+
+  useEffect(() => {
+    if (notificationsEnabled && todayPlan.timeBlocks.length > 0) {
+      const cleanup = startBlockMonitoring(todayPlan.timeBlocks, (block) => {
+        console.log('Block changed:', block.label);
+      });
+      return cleanup;
+    }
+  }, [notificationsEnabled, todayPlan.timeBlocks, startBlockMonitoring]);
+
+  useEffect(() => {
+    if (notificationsEnabled) {
+      const cleanup = scheduleDailyNotifications('06:00', '20:00');
+      return cleanup;
+    }
+  }, [notificationsEnabled, scheduleDailyNotifications]);
+
+  useEffect(() => {
+    if (notificationsEnabled && isLoaded) {
+      const now = new Date();
+      const hour = now.getHours();
+      if (hour >= 5 && hour <= 8) {
+        const lastBriefing = localStorage.getItem('last_morning_briefing');
+        const today = now.toDateString();
+        if (lastBriefing !== today) {
+          sendMorningBriefing(
+            todayPlan.tasks.map(t => ({ title: t.title, priority: t.priority })),
+            todayPlan.sacrifice
+          );
+          localStorage.setItem('last_morning_briefing', today);
+        }
+      }
+    }
+  }, [notificationsEnabled, isLoaded, todayPlan, sendMorningBriefing]);
+
+  const handleWelcomeComplete = () => {
+    localStorage.setItem(WELCOME_COMPLETED_KEY, 'true');
+    setShowWelcome(false);
+  };
+
+  const handleEnableNotifications = async () => {
+    const granted = await requestPermission();
+    setNotificationsEnabled(granted);
+    setShowNotificationPrompt(false);
+    if (granted) playBlockBell();
+  };
+
+  const handleToggleNotifications = async () => {
+    if (notificationsEnabled) {
+      setNotificationsEnabled(false);
+    } else {
+      if (permission === 'granted') {
+        setNotificationsEnabled(true);
+      } else {
+        const granted = await requestPermission();
+        setNotificationsEnabled(granted);
+      }
+    }
+  };
+
+  const handleInstallApp = async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') setDeferredPrompt(null);
+    }
+    setShowInstallPrompt(false);
+  };
+
+  const handleDismissInstall = () => {
+    setShowInstallPrompt(false);
+    setShowNotificationPrompt(false);
+    localStorage.setItem(INSTALL_DISMISSED_KEY, 'true');
+  };
+
+  const handleSignOut = async () => {
+    await signOut();
+    setCurrentView('dashboard');
+  };
+
+  const handleSubscribed = () => refreshSubscription();
+
+  const handleUpgradeClick = () => {
+    if (!isAuthenticated) setShowAuthModal(true);
+    else setShowPricingModal(true);
+  };
+
+  const handleProfileClick = () => setCurrentView('profile');
+
+  const renderView = () => {
+    switch (currentView) {
+      case 'dashboard':
+        return (
+          <Dashboard
+            todayPlan={todayPlan}
+            operatingCode={operatingCode}
+            progress={progress}
+            currentBlock={currentBlock}
+            onUpdatePlan={updateTodayPlan}
+            onAddTask={addTask}
+            onToggleTask={toggleTask}
+            onDeleteTask={deleteTask}
+            onUpdateTimeBlocks={updateTimeBlocks}
+          />
+        );
+      case 'operating-code':
+        return (
+          <OperatingCodeView
+            operatingCode={operatingCode}
+            onUpdate={updateOperatingCode}
+          />
+        );
+      case 'daily':
+        return (
+          <DailyView
+            todayPlan={todayPlan}
+            progress={progress}
+            onUpdatePlan={updateTodayPlan}
+            onAddTask={addTask}
+            onToggleTask={toggleTask}
+            onDeleteTask={deleteTask}
+            onUpdateTimeBlocks={updateTimeBlocks}
+          />
+        );
+      case 'weekly':
+        return (
+          <WeeklyView
+            weeklyPlan={getCurrentWeeklyPlan()}
+            onUpdate={updateCurrentWeeklyPlan}
+          />
+        );
+      case 'monthly':
+        return (
+          <MonthlyView
+            monthlyPlan={getCurrentMonthlyPlan()}
+            onUpdate={updateCurrentMonthlyPlan}
+          />
+        );
+      case 'goals':
+        return (
+          <GoalsView
+            goals={goals}
+            onAddGoal={addGoal}
+            onUpdateGoal={updateGoal}
+          />
+        );
+      case 'tools':
+        return <ToolsView tools={tools} onUpdate={updateTools} />;
+      case 'reference':
+        return <ReferenceView reference={reference} onUpdate={updateReference} />;
+      case 'profile':
+        return isAuthenticated ? (
+          <ProfileView user={user} onSignOut={handleSignOut} streak={streak} />
+        ) : (
+          <div className="text-center py-20">
+            <p className="text-zinc-400 mb-4">Please sign in to view your profile</p>
+            <button
+              onClick={() => setShowAuthModal(true)}
+              className="px-6 py-3 bg-amber-500 hover:bg-amber-600 text-black font-bold rounded-lg transition-colors"
+            >
+              Sign In
+            </button>
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
+
+  if (!isLoaded && !forceLoaded) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center safe-area-inset">
+        <div className="text-center">
+          <svg className="w-16 h-16 mx-auto mb-4 animate-pulse" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+            <rect width="512" height="512" fill="#09090b" rx="64"/>
+            <circle cx="256" cy="256" r="140" fill="none" stroke="#f59e0b" strokeWidth="12"/>
+            <circle cx="256" cy="256" r="90" fill="none" stroke="#f59e0b" strokeWidth="6"/>
+            <circle cx="256" cy="256" r="30" fill="#f59e0b"/>
+            <line x1="256" y1="96" x2="256" y2="156" stroke="#f59e0b" strokeWidth="10" strokeLinecap="round"/>
+            <line x1="256" y1="356" x2="256" y2="416" stroke="#f59e0b" strokeWidth="10" strokeLinecap="round"/>
+            <line x1="96" y1="256" x2="156" y2="256" stroke="#f59e0b" strokeWidth="10" strokeLinecap="round"/>
+            <line x1="356" y1="256" x2="416" y2="256" stroke="#f59e0b" strokeWidth="10" strokeLinecap="round"/>
+          </svg>
+          <p className="text-zinc-400">Loading your planner...</p>
+          <p className="text-zinc-600 text-xs mt-3">
+            Taking too long?{' '}
+            <button
+              onClick={() => window.location.reload()}
+              className="text-amber-500 underline"
+            >
+              Tap to refresh
+            </button>
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-black text-white safe-area-inset">
+      <WelcomeModal isOpen={showWelcome} onComplete={handleWelcomeComplete} />
+      <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} onSignIn={signIn} onSignUp={signUp} />
+      <PricingModal isOpen={showPricingModal} onClose={() => setShowPricingModal(false)} userEmail={user?.email} onSubscribed={handleSubscribed} />
+      <ManageSubscriptionModal isOpen={showManageSubscription} onClose={() => setShowManageSubscription(false)} subscription={subscription} onCancel={cancelSubscription} onRefresh={refreshSubscription} />
+
+      <div className="hidden lg:block">
+        <Sidebar
+          currentView={currentView}
+          onViewChange={setCurrentView}
+          isCollapsed={sidebarCollapsed}
+          onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+          principles={operatingCode.principles}
+          isAuthenticated={isAuthenticated}
+        />
+      </div>
+
+      <MobileNav
+        isOpen={mobileNavOpen}
+        onClose={() => setMobileNavOpen(false)}
+        currentView={currentView}
+        onViewChange={setCurrentView}
+        isAuthenticated={isAuthenticated}
+      />
+
+      <div className={`transition-all duration-300 ${sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-64'}`}>
+        <Header
+          onMenuClick={() => setMobileNavOpen(true)}
+          notificationsEnabled={notificationsEnabled}
+          onToggleNotifications={handleToggleNotifications}
+          streak={streak}
+          syncStatus={syncStatus}
+          isAuthenticated={isAuthenticated}
+          userEmail={user?.email}
+          onSignInClick={() => setShowAuthModal(true)}
+          onSignOut={handleSignOut}
+          subscriptionPlan={subscription.plan}
+          onUpgradeClick={handleUpgradeClick}
+          onManageSubscriptionClick={() => setShowManageSubscription(true)}
+          onProfileClick={handleProfileClick}
+        />
+
+        <main className="p-4 md:p-6 pb-24 lg:pb-6">
+          {renderView()}
+        </main>
+
+        {!isAuthenticated && !isPWA && (
+          <div className="fixed bottom-0 left-0 right-0 lg:left-64 bg-gradient-to-r from-amber-500/10 to-red-500/10 border-t border-amber-500/30 p-4 safe-area-bottom">
+            <div className="max-w-4xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="text-center sm:text-left">
+                <p className="text-white font-medium">Sync your planner across devices</p>
+                <p className="text-zinc-400 text-sm">Sign in to enable cloud backup and real-time sync</p>
+              </div>
+              <button
+                onClick={() => setShowAuthModal(true)}
+                className="w-full sm:w-auto px-4 py-2 bg-amber-500 hover:bg-amber-600 text-black font-medium rounded-lg transition-colors"
+              >
+                Sign In
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <NotificationPrompt
+        isVisible={showNotificationPrompt}
+        onEnable={handleEnableNotifications}
+        onDismiss={handleDismissInstall}
+        isIOS={isIOS}
+        isPWA={isPWA}
+      />
+
+      <InstallPrompt
+        isVisible={showInstallPrompt && !isIOS}
+        onInstall={handleInstallApp}
+        onDismiss={handleDismissInstall}
+      />
+    </div>
+  );
+};
+
+export default AppLayout;
