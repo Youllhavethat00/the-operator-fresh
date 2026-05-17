@@ -51,4 +51,39 @@ Respond with ONLY a valid JSON object — no preamble, no explanation, no markdo
   ]
 }`;
 
-export default async function handler(req:
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'POST') return res.status(405).end();
+
+  const { userInput, context } = req.body;
+  if (!userInput) return res.status(400).json({ error: 'userInput is required' });
+
+  try {
+    const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': process.env.ANTHROPIC_API_KEY!,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1024,
+        system: SYSTEM_PROMPT,
+        messages: [{ role: 'user', content: userInput }],
+      }),
+    });
+
+    const anthropicData = await anthropicRes.json();
+
+    if (!anthropicRes.ok) {
+      return res.status(anthropicRes.status).json({ error: anthropicData.error?.message || 'Anthropic API error' });
+    }
+
+    const text = anthropicData.content[0].text;
+    const parsed = JSON.parse(text);
+    return res.status(200).json(parsed);
+
+  } catch (err) {
+    return res.status(500).json({ error: 'Something went wrong. Try again.' });
+  }
+}
