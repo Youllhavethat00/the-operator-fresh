@@ -1,3 +1,5 @@
+import type { VercelRequest, VercelResponse } from '@vercel/node';
+
 const SYSTEM_PROMPT = `You are the AI coach inside "The Operator" — a planner for high-performing operators built on the 80/60/20 framework.
 
 YOUR JOB:
@@ -48,3 +50,5 @@ Respond with ONLY a valid JSON object — no preamble, no explanation, no markdo
     { "title": "string", "priority": "80" | "60" | "20" }
   ]
 }`;
+
+export default async function handler(req:
