@@ -27,7 +27,7 @@ export interface DailyPlan {
   comfortRefused: string;
   tasks: Task[];
   timeBlocks: TimeBlock[];
-  reflection?: string;
+  endOfDayReview?: string;
   completed: boolean;
 }
 

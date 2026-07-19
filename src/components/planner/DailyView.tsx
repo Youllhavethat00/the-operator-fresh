@@ -111,23 +111,24 @@ export const DailyView: React.FC<DailyViewProps> = ({
 
       {/* Daily Intention */}
       <DailyIntention
-        plan={todayPlan}
+        intention={todayPlan.intention}
+        sacrifice={todayPlan.sacrifice}
+        comfortRefused={todayPlan.comfortRefused}
         onUpdate={onUpdatePlan}
       />
 
       {/* Tasks */}
       <TaskList
         tasks={todayPlan.tasks}
-        onAdd={onAddTask}
-        onToggle={onToggleTask}
-        onDelete={onDeleteTask}
+        onAddTask={onAddTask}
+        onToggleTask={onToggleTask}
+        onDeleteTask={onDeleteTask}
       />
 
       {/* Time Blocks */}
       <TimeBlockScheduler
         timeBlocks={todayPlan.timeBlocks}
-        tasks={todayPlan.tasks}
-        onUpdate={onUpdateTimeBlocks}
+        onUpdateBlocks={onUpdateTimeBlocks}
       />
 
       {/* End of Day Review */}

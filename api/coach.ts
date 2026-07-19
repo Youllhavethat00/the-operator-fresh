@@ -57,17 +57,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { userInput, context } = req.body;
   if (!userInput) return res.status(400).json({ error: 'userInput is required' });
 
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return res.status(500).json({ error: 'AI coach is not configured. Set ANTHROPIC_API_KEY in the Vercel project environment variables.' });
+  }
+
   try {
     const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
-        'x-api-key': process.env.ANTHROPIC_API_KEY!,
+        'x-api-key': process.env.ANTHROPIC_API_KEY,
         'anthropic-version': '2023-06-01',
         'content-type': 'application/json',
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-5',
-
         max_tokens: 1024,
         system: SYSTEM_PROMPT,
         messages: [{ role: 'user', content: userInput }],
@@ -81,10 +84,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const text = anthropicData.content[0].text;
-    const parsed = JSON.parse(text);
+    // Strip markdown code fences in case the model wraps the JSON despite instructions not to.
+    const cleaned = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '');
+    const parsed = JSON.parse(cleaned);
     return res.status(200).json(parsed);
 
   } catch (err) {
+    console.error('[api/coach] error:', err);
     return res.status(500).json({ error: 'Something went wrong. Try again.' });
   }
 }
