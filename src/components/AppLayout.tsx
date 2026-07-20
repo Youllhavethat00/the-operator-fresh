@@ -380,12 +380,12 @@ const AppLayout: React.FC = () => {
           onProfileClick={handleProfileClick}
         />
 
-        <main className="p-4 md:p-6 pb-24 lg:pb-6">
+        <main className={`p-4 md:p-6 ${!isAuthenticated && !isPWA ? 'pb-36 lg:pb-24' : 'pb-24 lg:pb-6'}`}>
           {renderView()}
         </main>
 
         {!isAuthenticated && !isPWA && (
-          <div className="fixed bottom-0 left-0 right-0 lg:left-64 bg-gradient-to-r from-amber-500/10 to-red-500/10 border-t border-amber-500/30 p-4 safe-area-bottom">
+          <div className="fixed bottom-0 left-0 right-0 lg:left-64 bg-zinc-900/95 backdrop-blur-sm border-t border-amber-500/30 p-4 safe-area-bottom">
             <div className="max-w-4xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
               <div className="text-center sm:text-left">
                 <p className="text-white font-medium">Sync your planner across devices</p>
