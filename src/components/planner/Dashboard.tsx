@@ -75,6 +75,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
         isOpen={showCoach}
         onClose={() => setShowCoach(false)}
         onApply={handleApplyCoach}
+        context={{
+          operatingPrinciples: operatingCode.principles,
+          businessContext: operatingCode.businessContext,
+        }}
       />
 
       {/* AI Plan My Day */}

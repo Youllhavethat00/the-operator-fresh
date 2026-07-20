@@ -141,6 +141,25 @@ export const OperatingCodeView: React.FC<OperatingCodeViewProps> = ({
         )}
       </div>
 
+      {/* About My Business */}
+      <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+        <h2 className="text-xl font-bold text-white flex items-center gap-3 mb-2">
+          <Flame size={24} className="text-amber-500" />
+          ABOUT MY BUSINESS
+        </h2>
+        <p className="text-zinc-400 mb-4 text-sm">
+          Give the AI coach context on what you do, who you serve, and what you're building.
+          It'll use this every time it plans your day.
+        </p>
+        <textarea
+          value={operatingCode.businessContext || ''}
+          onChange={(e) => onUpdate({ businessContext: e.target.value })}
+          placeholder="e.g. I run a boutique consulting firm helping trade contractors close bigger deals. Main revenue driver is outreach to GCs and closing calls..."
+          className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500 resize-none text-sm"
+          rows={4}
+        />
+      </div>
+
       {/* Daily Application */}
       <div className="grid md:grid-cols-3 gap-4">
         <div className="bg-zinc-900 border border-red-500/30 rounded-xl p-5">

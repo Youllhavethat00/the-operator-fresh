@@ -5,11 +5,12 @@ import { TaskList } from './TaskList';
 import { TimeBlockScheduler } from './TimeBlockScheduler';
 import { ProgressRing } from './ProgressCard';
 import { AICoachModal } from './AICoachModal';
-import { DailyPlan, Task, TimeBlock } from '@/types/planner';
+import { DailyPlan, Task, TimeBlock, OperatingCode } from '@/types/planner';
 import { getDailyQuote } from '@/data/quotes';
 
 interface DailyViewProps {
   todayPlan: DailyPlan;
+  operatingCode: OperatingCode;
   progress: { total: number; p80: number; p60: number; p20: number };
   onUpdatePlan: (updates: Partial<DailyPlan>) => void;
   onAddTask: (task: Omit<Task, 'id'>) => void;
@@ -20,6 +21,7 @@ interface DailyViewProps {
 
 export const DailyView: React.FC<DailyViewProps> = ({
   todayPlan,
+  operatingCode,
   progress,
   onUpdatePlan,
   onAddTask,
@@ -69,6 +71,10 @@ export const DailyView: React.FC<DailyViewProps> = ({
         isOpen={showCoach}
         onClose={() => setShowCoach(false)}
         onApply={handleApplyCoach}
+        context={{
+          operatingPrinciples: operatingCode.principles,
+          businessContext: operatingCode.businessContext,
+        }}
       />
 
       {/* Header */}

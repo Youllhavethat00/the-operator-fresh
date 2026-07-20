@@ -61,6 +61,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(500).json({ error: 'AI coach is not configured. Set ANTHROPIC_API_KEY in the Vercel project environment variables.' });
   }
 
+  const contextLines: string[] = [];
+  if (context?.businessContext) {
+    contextLines.push(`Business context: ${context.businessContext}`);
+  }
+  if (context?.operatingPrinciples?.length) {
+    contextLines.push(`Operating principles: ${context.operatingPrinciples.join('; ')}`);
+  }
+  const userMessage = contextLines.length
+    ? `${contextLines.join('\n')}\n\nToday: ${userInput}`
+    : userInput;
+
   try {
     const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -74,7 +85,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         max_tokens: 1024,
         thinking: { type: 'disabled' },
         system: SYSTEM_PROMPT,
-        messages: [{ role: 'user', content: userInput }],
+        messages: [{ role: 'user', content: userMessage }],
       }),
     });
 

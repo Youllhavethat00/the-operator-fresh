@@ -255,6 +255,7 @@ const AppLayout: React.FC = () => {
         return (
           <DailyView
             todayPlan={todayPlan}
+            operatingCode={operatingCode}
             progress={progress}
             onUpdatePlan={updateTodayPlan}
             onAddTask={addTask}

@@ -19,8 +19,7 @@ interface AICoachModalProps {
   onApply: (result: CoachResponse) => void;
   context?: {
     operatingPrinciples?: string[];
-    recentGoals?: string[];
-    yesterdayReflection?: string;
+    businessContext?: string;
   };
 }
 

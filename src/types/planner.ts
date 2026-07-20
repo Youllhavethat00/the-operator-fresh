@@ -73,9 +73,10 @@ export interface Milestone {
 
 export interface OperatingCode {
   principles: string[];
-  nonNegotiables: string[];
-  dailyRituals: string[];
-  weeklyRituals: string[];
+  dailySacrifice: string;
+  dailyCommitment: string;
+  comfortRefused: string;
+  businessContext?: string;
 }
 
 // ---------- TOOLS ----------
