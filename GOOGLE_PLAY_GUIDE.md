@@ -91,13 +91,32 @@ bubblewrap build
 This produces `app-release-bundle.aab` (upload this) and `app-release-signed.apk`
 (useful for testing directly on a device before you upload anything).
 
-## 5. Test on a real device first
+## 5. Test before you submit
+
+### Don't have an Android phone? You don't need one.
+
+**Option A — Android Studio emulator (free, no hardware).**
+1. Install [Android Studio](https://developer.android.com/studio).
+2. Open **Device Manager** → **Create Device** → pick any Pixel profile → download
+   a system image → Finish.
+3. Launch that virtual device — it's a full Android phone running in a window.
+4. With it running, `adb install app-release-signed.apk` installs onto the
+   emulator automatically, no cable or physical device involved.
+
+**Option B — skip local testing, use Play Console's Internal Testing track.**
+Since you already have a Play Console account, you can upload
+`app-release-bundle.aab` straight to **Internal Testing** without testing
+locally first. That gives you a testing link — install it via that link on
+*any* Android device (a friend's phone, the emulator above, whatever's
+around) to verify before promoting to Production. Google doesn't require the
+developer to test on their own hardware before submitting.
+
+### What to check once it's running (device or emulator)
 
 ```bash
 adb install app-release-signed.apk
 ```
 
-Confirm:
 - The app opens full-screen with **no browser URL bar** (this only works once
   `assetlinks.json` is live and correct — if you see a URL bar, the asset
   link verification failed).
