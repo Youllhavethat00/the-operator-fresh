@@ -1,9 +1,10 @@
-import React, { useEffect } from 'react';
-import { Flame, Target, Clock, TrendingUp, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Flame, Target, Clock, TrendingUp, AlertTriangle, CheckCircle2, Sparkles } from 'lucide-react';
 import { ProgressCard, ProgressRing } from './ProgressCard';
 import { TaskList } from './TaskList';
 import { TimeBlockScheduler } from './TimeBlockScheduler';
 import { DailyIntention } from './DailyIntention';
+import { AICoachModal } from './AICoachModal';
 import { DailyPlan, Task, TimeBlock, OperatingCode } from '@/types/planner';
 import { getDailyQuote } from '@/data/quotes';
 interface DashboardProps {
@@ -40,7 +41,53 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const p80Tasks = todayPlan.tasks.filter(t => t.priority === '80');
   const p60Tasks = todayPlan.tasks.filter(t => t.priority === '60');
   const p20Tasks = todayPlan.tasks.filter(t => t.priority === '20');
+
+  // ----- AI Coach -----
+  const [showCoach, setShowCoach] = useState(false);
+
+  const handleApplyCoach = (result: {
+    intention: string;
+    sacrifice: string;
+    comfortRefused: string;
+    suggestedTasks: Array<{ title: string; priority: '80' | '60' | '20' }>;
+  }) => {
+    onUpdatePlan({
+      intention: result.intention,
+      sacrifice: result.sacrifice,
+      comfortRefused: result.comfortRefused,
+    });
+
+    result.suggestedTasks.forEach((task) => {
+      onAddTask({
+        title: task.title,
+        priority: task.priority,
+        completed: false,
+        timeEstimate: 30,
+        notes: '',
+        createdAt: new Date().toISOString(),
+      });
+    });
+  };
+
   return <div className="space-y-6">
+      {/* AI Coach Modal */}
+      <AICoachModal
+        isOpen={showCoach}
+        onClose={() => setShowCoach(false)}
+        onApply={handleApplyCoach}
+      />
+
+      {/* AI Plan My Day */}
+      <div className="flex justify-end">
+        <button
+          onClick={() => setShowCoach(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-black font-bold rounded-lg transition-all shadow-lg shadow-amber-500/20 min-h-[44px]"
+        >
+          <Sparkles size={18} />
+          <span>Plan My Day</span>
+        </button>
+      </div>
+
       {/* Alert Banner if no commitment set */}
       {!hasCommitment && <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 flex items-center gap-4">
           <AlertTriangle size={24} className="text-red-400 flex-shrink-0" />
