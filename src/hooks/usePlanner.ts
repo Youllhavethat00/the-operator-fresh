@@ -164,6 +164,13 @@ export const usePlanner = () => {
   const tools = localState.tools;
   const reference = localState.reference;
 
+  const getDailyPlansInRange = useCallback((startDate: string, endDate: string): DailyPlan[] => {
+    return Object.entries(dailyPlans)
+      .filter(([date]) => date >= startDate && date <= endDate)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([, plan]) => plan);
+  }, [dailyPlans]);
+
   const getTodayPlan = useCallback((): DailyPlan => {
     const today = getTodayKey();
     if (dailyPlans[today]) return dailyPlans[today];
@@ -371,6 +378,7 @@ export const usePlanner = () => {
     signOut: supabaseSync.signOut,
     syncStatus: supabaseSync.syncStatus,
     getTodayPlan,
+    getDailyPlansInRange,
     updateTodayPlan,
     addTask,
     toggleTask,

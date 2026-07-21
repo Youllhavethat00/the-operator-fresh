@@ -1,14 +1,17 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { CalendarRange, Target, TrendingUp, Check } from 'lucide-react';
+import { CalendarRange, Target, TrendingUp, Check, Sparkles } from 'lucide-react';
 import { getPhaseForMonth, getPhaseColor } from '@/data/operatingCode';
-import { MonthlyPlan } from '@/types/planner';
+import { MonthlyPlan, OperatingCode, DailyPlan } from '@/types/planner';
+import { AIReviewModal } from './AIReviewModal';
 
 interface MonthlyViewProps {
   monthlyPlan: MonthlyPlan;
+  operatingCode: OperatingCode;
+  getDailyPlansInRange: (startDate: string, endDate: string) => DailyPlan[];
   onUpdate: (updates: Partial<MonthlyPlan>) => void;
 }
 
-export const MonthlyView: React.FC<MonthlyViewProps> = ({ monthlyPlan, onUpdate }) => {
+export const MonthlyView: React.FC<MonthlyViewProps> = ({ monthlyPlan, operatingCode, getDailyPlansInRange, onUpdate }) => {
   const currentMonth = new Date().getMonth();
   const currentYear = new Date().getFullYear();
   const phase = getPhaseForMonth(currentMonth + 1);
@@ -16,6 +19,7 @@ export const MonthlyView: React.FC<MonthlyViewProps> = ({ monthlyPlan, onUpdate 
 
   const [draft, setDraft] = useState<MonthlyPlan>(monthlyPlan);
   const [savedFlash, setSavedFlash] = useState(false);
+  const [showReview, setShowReview] = useState(false);
   const flushTimer = useRef<NodeJS.Timeout | null>(null);
   const flashTimer = useRef<NodeJS.Timeout | null>(null);
 
@@ -76,8 +80,32 @@ export const MonthlyView: React.FC<MonthlyViewProps> = ({ monthlyPlan, onUpdate 
   const calendarDays = generateCalendarDays();
   const today = new Date().getDate();
 
+  const monthStartKey = new Date(currentYear, currentMonth, 1).toISOString().split('T')[0];
+  const monthEndKey = new Date(currentYear, currentMonth + 1, 0).toISOString().split('T')[0];
+
+  const handleApplyReview = (result: { suggestedReflection: string; suggestedAction: string }) => {
+    setDraft((prev) => ({
+      ...prev,
+      reflection: result.suggestedReflection || prev.reflection,
+      removeNext: result.suggestedAction || prev.removeNext,
+    }));
+  };
+
   return (
     <div className="space-y-6">
+      {/* AI Review Modal */}
+      <AIReviewModal
+        isOpen={showReview}
+        onClose={() => setShowReview(false)}
+        period="month"
+        periodLabel={monthName}
+        dailyPlans={getDailyPlansInRange(monthStartKey, monthEndKey)}
+        onApply={handleApplyReview}
+        context={{
+          operatingPrinciples: operatingCode.principles,
+          businessContext: operatingCode.businessContext,
+        }}
+      />
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
@@ -95,15 +123,24 @@ export const MonthlyView: React.FC<MonthlyViewProps> = ({ monthlyPlan, onUpdate 
             <span className="text-zinc-500 text-sm">Phase</span>
           </div>
         </div>
-        <div className="flex items-center gap-2 text-sm text-zinc-400">
-          {savedFlash ? (
-            <>
-              <Check size={16} className="text-green-400" />
-              <span className="text-green-400">Saved</span>
-            </>
-          ) : (
-            <span className="text-zinc-500">Auto-saves as you type</span>
-          )}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowReview(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-black font-bold rounded-lg transition-all shadow-lg shadow-amber-500/20 min-h-[44px]"
+          >
+            <Sparkles size={18} />
+            AI Review
+          </button>
+          <div className="flex items-center gap-2 text-sm text-zinc-400">
+            {savedFlash ? (
+              <>
+                <Check size={16} className="text-green-400" />
+                <span className="text-green-400">Saved</span>
+              </>
+            ) : (
+              <span className="text-zinc-500">Auto-saves as you type</span>
+            )}
+          </div>
         </div>
       </div>
 

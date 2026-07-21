@@ -1,16 +1,20 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { CalendarDays, Target, CheckCircle, AlertCircle, Check } from 'lucide-react';
-import { WeeklyPlan } from '@/types/planner';
+import { CalendarDays, Target, CheckCircle, AlertCircle, Check, Sparkles } from 'lucide-react';
+import { WeeklyPlan, OperatingCode, DailyPlan } from '@/types/planner';
+import { AIReviewModal } from './AIReviewModal';
 
 interface WeeklyViewProps {
   weeklyPlan: WeeklyPlan;
+  operatingCode: OperatingCode;
+  getDailyPlansInRange: (startDate: string, endDate: string) => DailyPlan[];
   onUpdate: (updates: Partial<WeeklyPlan>) => void;
 }
 
-export const WeeklyView: React.FC<WeeklyViewProps> = ({ weeklyPlan, onUpdate }) => {
+export const WeeklyView: React.FC<WeeklyViewProps> = ({ weeklyPlan, operatingCode, getDailyPlansInRange, onUpdate }) => {
   // Local mirror so typing feels instant; flush to parent on debounce
   const [draft, setDraft] = useState<WeeklyPlan>(weeklyPlan);
   const [savedFlash, setSavedFlash] = useState(false);
+  const [showReview, setShowReview] = useState(false);
   const flushTimer = useRef<NodeJS.Timeout | null>(null);
   const flashTimer = useRef<NodeJS.Timeout | null>(null);
 
@@ -44,6 +48,13 @@ export const WeeklyView: React.FC<WeeklyViewProps> = ({ weeklyPlan, onUpdate }) 
     };
   }, [draft]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const getWeekEndKey = () => {
+    const start = new Date(weeklyPlan.weekStart + 'T00:00:00');
+    const end = new Date(start);
+    end.setDate(start.getDate() + 6);
+    return end.toISOString().split('T')[0];
+  };
+
   const getWeekDates = () => {
     const start = new Date(weeklyPlan.weekStart + 'T00:00:00');
     const end = new Date(start);
@@ -61,8 +72,30 @@ export const WeeklyView: React.FC<WeeklyViewProps> = ({ weeklyPlan, onUpdate }) 
     setDraft({ ...draft, keyOutcomes: updated });
   };
 
+  const handleApplyReview = (result: { suggestedReflection: string; suggestedAction: string }) => {
+    setDraft((prev) => ({
+      ...prev,
+      comfortVsStandards: result.suggestedReflection || prev.comfortVsStandards,
+      sacrificeMomentum: result.suggestedAction || prev.sacrificeMomentum,
+    }));
+  };
+
   return (
     <div className="space-y-6">
+      {/* AI Review Modal */}
+      <AIReviewModal
+        isOpen={showReview}
+        onClose={() => setShowReview(false)}
+        period="week"
+        periodLabel="This Week"
+        dailyPlans={getDailyPlansInRange(weeklyPlan.weekStart, getWeekEndKey())}
+        onApply={handleApplyReview}
+        context={{
+          operatingPrinciples: operatingCode.principles,
+          businessContext: operatingCode.businessContext,
+        }}
+      />
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
@@ -72,15 +105,24 @@ export const WeeklyView: React.FC<WeeklyViewProps> = ({ weeklyPlan, onUpdate }) 
           </h2>
           <p className="text-zinc-400 mt-1">{weekDates.start} - {weekDates.end}</p>
         </div>
-        <div className="flex items-center gap-2 text-sm text-zinc-400">
-          {savedFlash ? (
-            <>
-              <Check size={16} className="text-green-400" />
-              <span className="text-green-400">Saved</span>
-            </>
-          ) : (
-            <span className="text-zinc-500">Auto-saves as you type</span>
-          )}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowReview(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-black font-bold rounded-lg transition-all shadow-lg shadow-amber-500/20 min-h-[44px]"
+          >
+            <Sparkles size={18} />
+            AI Review
+          </button>
+          <div className="flex items-center gap-2 text-sm text-zinc-400">
+            {savedFlash ? (
+              <>
+                <Check size={16} className="text-green-400" />
+                <span className="text-green-400">Saved</span>
+              </>
+            ) : (
+              <span className="text-zinc-500">Auto-saves as you type</span>
+            )}
+          </div>
         </div>
       </div>
 

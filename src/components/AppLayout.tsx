@@ -46,6 +46,7 @@ const AppLayout: React.FC = () => {
   const {
     isLoaded,
     getTodayPlan,
+    getDailyPlansInRange,
     updateTodayPlan,
     addTask,
     toggleTask,
@@ -268,6 +269,8 @@ const AppLayout: React.FC = () => {
         return (
           <WeeklyView
             weeklyPlan={getCurrentWeeklyPlan()}
+            operatingCode={operatingCode}
+            getDailyPlansInRange={getDailyPlansInRange}
             onUpdate={updateCurrentWeeklyPlan}
           />
         );
@@ -275,6 +278,8 @@ const AppLayout: React.FC = () => {
         return (
           <MonthlyView
             monthlyPlan={getCurrentMonthlyPlan()}
+            operatingCode={operatingCode}
+            getDailyPlansInRange={getDailyPlansInRange}
             onUpdate={updateCurrentMonthlyPlan}
           />
         );
